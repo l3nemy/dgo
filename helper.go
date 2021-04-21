@@ -9,8 +9,7 @@ import (
 )
 
 var (
-	ErrCommandExists = errors.New("command exists. If you want to override it, use AddHandlerOverride instead")
-	ErrCommandEmpty  = errors.New("command is empty")
+	ErrCommandEmpty = errors.New("command is empty")
 )
 
 type (
@@ -73,77 +72,60 @@ func (h *Helper) SetPrefix(prefix string) {
 	h.prefix = prefix
 }
 
-func (h *Helper) MustAddHandlers(handlers map[string]*Handler) map[string]func() {
-	return h.mustAddHandlers(handlers, true)
-}
-
-func (h *Helper) AddHandlers(handlers map[string]*Handler) (map[string]func(), error) {
-	return h.addHandlers(handlers, false)
-}
-
-func (h *Helper) AddHandlersOverride(handlers map[string]*Handler) map[string]func() {
-	return h.mustAddHandlers(handlers, false)
-}
-
-func (h *Helper) addHandlers(handlers map[string]*Handler, override bool) (map[string]func(), error) {
+func (h *Helper) AddHandlerMultipleCommands(commands []string, handler *Handler) map[string]func() {
 	ret := map[string]func(){}
-
-	for command, handler := range handlers {
-		d, err := h.addHandler(command, handler, override)
-		if err != nil {
-			return nil, err
-		}
-		ret[command] = d
-	}
-	return ret, nil
-}
-
-func (h *Helper) mustAddHandlers(handlers map[string]*Handler, override bool) map[string]func() {
-	ret, err := h.addHandlers(handlers, override)
-	if err != nil {
-		panic(err)
+	for _, command := range commands {
+		ret[command] = h.addHandler(command, handler)
 	}
 	return ret
 }
 
-func (h *Helper) MustAddHandler(command string, handler *Handler) func() {
-	return h.mustAddHandler(command, handler, false)
+func (h *Helper) AddHandlersMultipleCommands(commands []struct {
+	Commands []string
+	Handler  *Handler
+}) map[string]func() {
+	ret := map[string]func(){}
+	for _, command := range commands {
+		dests := h.AddHandlerMultipleCommands(command.Commands, command.Handler)
+		for c, d := range dests {
+			ret[c] = d
+		}
+	}
+	return ret
 }
 
-func (h *Helper) AddHandler(command string, handler *Handler) (func(), error) {
-	return h.addHandler(command, handler, false)
+func (h *Helper) AddHandlers(handlers map[string]*Handler) map[string]func() {
+	return h.addHandlers(handlers, false)
 }
 
-func (h *Helper) AddHandlerOverride(command string, handler *Handler) func() {
-	return h.mustAddHandler(command, handler, true)
+func (h *Helper) addHandlers(handlers map[string]*Handler, override bool) map[string]func() {
+	ret := map[string]func(){}
+
+	for command, handler := range handlers {
+		d := h.addHandler(command, handler)
+		ret[command] = d
+	}
+	return ret
+}
+
+func (h *Helper) AddHandler(command string, handler *Handler) func() {
+	return h.addHandler(command, handler)
 }
 
 func (h *Helper) CmdArgs(m *discordgo.MessageCreate) (cmd string, argc int, argv []string) {
 	return h.cmdArgs(m.Content)
 }
 
-func (h *Helper) mustAddHandler(command string, handler *Handler, override bool) func() {
-	ret, err := h.addHandler(command, handler, override)
-	if err != nil {
-		panic(err)
-	}
-	return ret
-}
-
-func (h *Helper) addHandler(command string, handler *Handler, override bool) (func(), error) {
+func (h *Helper) addHandler(command string, handler *Handler) func() {
 	if command == "" {
-		return nil, ErrCommandEmpty
-	}
-
-	if _, ex := h.handlerList[command]; ex && !override {
-		return nil, ErrCommandExists
+		panic(ErrCommandEmpty)
 	}
 
 	h.handlerList[command] = handler
 
 	return func() {
 		h.deleteHandler(command)
-	}, nil
+	}
 }
 
 func (h *Helper) deleteHandler(command string) {

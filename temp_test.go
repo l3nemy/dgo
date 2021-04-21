@@ -27,7 +27,7 @@ func TestAll(t *testing.T) {
 		return
 	}
 
-	h.MustAddHandler("say", &dgo.Handler{
+	h.AddHandler("say", &dgo.Handler{
 		func(s S, m M) {
 			cmd, argc, argv := h.CmdArgs(m)
 			fmt.Println(cmd, argc, argv)
